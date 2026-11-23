@@ -1,0 +1,33 @@
+{
+  "practice_id": "CASE-1001",
+  "virtual_iban": "DEMO-IBAN-1001",
+  "destination": "Zante",
+  "turn": {
+    "start_date": "2027-07-12",
+    "end_date": "2027-07-19"
+  },
+  "installments": [
+    { "number": 1, "percent": 40, "due_date": "2026-12-15" },
+    { "number": 2, "percent": 30, "due_date": "2027-02-15" },
+    { "number": 3, "percent": 30, "due_date": "2027-04-15" }
+  ],
+  "participants": [
+    {
+      "participant_id": "P-001",
+      "first_name": "Mario",
+      "last_name": "Rossi",
+      "services": [
+        { "code": "PACKAGE", "name": "Pacchetto viaggio", "amount_eur": "350.00" },
+        { "code": "NAVETTA", "name": "Navetta", "amount_eur": "100.00" }
+      ]
+    },
+    {
+      "participant_id": "P-002",
+      "first_name": "Giulia",
+      "last_name": "Bianchi",
+      "services": [
+        { "code": "PACKAGE", "name": "Pacchetto viaggio", "amount_eur": "350.00" }
+      ]
+    }
+  ]
+}

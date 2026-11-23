@@ -1,0 +1,3 @@
+id_movimento,data,iban_virtuale,importo,causale
+TX-001,2026-11-20,DEMO-IBAN-1001,150.00,CASE-1001 Mario Rossi
+TX-002,2026-11-20,DEMO-IBAN-1001,100.00,CASE-1001 Giulia Bianchi

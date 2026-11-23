@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini gestionale InVibe</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+        h1 { margin-bottom: 0.2rem; }
+        .sottotitolo { color: #666; margin-top: 0; }
+        .messaggio { background: #fff8e1; border: 1px solid #f0c36d; padding: 0.8rem; border-radius: 4px; }
+        .riquadri { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .riquadro { flex: 1; min-width: 280px; border: 1px solid #ddd; border-radius: 4px; padding: 1rem; }
+        .riquadro h2 { font-size: 1.1rem; margin-top: 0; }
+        button { margin-top: 0.6rem; padding: 0.4rem 1rem; cursor: pointer; }
+        table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+        th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+        th { background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>Mini gestionale InVibe</h1>
+    <p class="sottotitolo">Pratiche di viaggio, rate e bonifici · <a href="/docs">API</a></p>
+
+    {% if messaggio %}
+        <p class="messaggio" data-testid="messaggio">{{ messaggio }}</p>
+    {% endif %}
+
+    <div class="riquadri">
+        <form class="riquadro" action="/importa/pratica" method="post" enctype="multipart/form-data">
+            <h2>1. Crea pratica</h2>
+            <p>Carica il file della prenotazione (JSON).</p>
+            <input type="file" name="file" accept=".json" required data-testid="file-pratica">
+            <br>
+            <button type="submit" data-testid="carica-pratica">Crea pratica</button>
+        </form>
+
+        <form class="riquadro" action="/importa/movimenti" method="post" enctype="multipart/form-data">
+            <h2>2. Importa bonifici</h2>
+            <p>Carica il file dei movimenti bancari (CSV).</p>
+            <input type="file" name="file" accept=".csv" required data-testid="file-movimenti">
+            <br>
+            <button type="submit" data-testid="carica-movimenti">Importa bonifici</button>
+        </form>
+    </div>
+
+    <h2>Pratiche</h2>
+    {% if pratiche %}
+        <table data-testid="elenco-pratiche">
+            <thead>
+                <tr>
+                    <th>Pratica</th>
+                    <th>IBAN virtuale</th>
+                    <th>Destinazione</th>
+                    <th>Turno</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pratiche %}
+                    <tr>
+                        <td><a href="/pratiche/{{ p.practice_id }}">{{ p.practice_id }}</a></td>
+                        <td>{{ p.virtual_iban }}</td>
+                        <td>{{ p.destinazione }}</td>
+                        <td>{{ p.data_inizio | data }} – {{ p.data_fine | data }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p data-testid="nessuna-pratica">Nessuna pratica presente. Carica un file di prenotazione per iniziare.</p>
+    {% endif %}
+</body>
+</html>
