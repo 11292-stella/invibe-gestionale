@@ -76,16 +76,29 @@ pytest --junitxml=reports/junit.xml
 | API | 22 | Tutta la tabella "Risultati attesi" del documento, errori di import, bonifici non attribuibili, reimport, eccedenze, persistenza |
 | E2E | 12 | La pagina mostra i risultati attesi; caricamento dei file dai form; messaggi di errore; dati presenti dopo il reload |
 
+Risultato attuale: **2056 test superati**.
+
 I test usano un database temporaneo e non modificano `invibe.db`. I test E2E avviano un server dedicato sulla porta 8765.
 
 ---
 
 ## Funzionalità completate
 
-- **A2 – Creazione della pratica** da `prenotazione_demo.json`, con `practice_id` e IBAN virtuale unico per la pratica. Quota del partecipante = somma dei servizi. Rate al 40% / 30% / 30%: le prime due arrotondate al centesimo, la terza calcolata per differenza.
+- **A2 – Creazione della pratica** da `prenotazione_demo.json`, con `practice_id` e IBAN virtuale unico per la pratica. Quota del partecipante = somma dei servizi. Rate al 40% / 30% / 30%: le prime due arrotondate al centesimo, la terza calcolata per differenza, così la somma delle rate è sempre uguale alla quota.
 - **A3 – Registrazione dei bonifici** da `movimenti_bancari_demo.csv`. L'IBAN virtuale individua la pratica, la causale individua il partecipante. Imputazione in ordine di scadenza: prima la rata 1, l'eccedenza passa alla 2 e poi alla 3.
 - **A4 – Consultazione** tramite pagina HTML e API JSON: partecipanti con servizi e quote, rate con scadenza, incassato e residuo, movimenti attribuiti, totali della pratica.
 - **Persistenza** in SQLite: i dati restano dopo un aggiornamento della pagina o un riavvio.
+
+### Risultati sui dati di esempio
+
+| Elemento | Risultato |
+|---|---|
+| Pratica / IBAN virtuale | CASE-1001 / DEMO-IBAN-1001 |
+| Mario Rossi | Quota 450,00 € · Rate 180,00 / 135,00 / 135,00 € · Incassati 150,00 €, residui 300,00 € · Rata 1: 30,00 € residui |
+| Giulia Bianchi | Quota 350,00 € · Rate 140,00 / 105,00 / 105,00 € · Incassati 100,00 €, residui 250,00 € · Rata 1: 40,00 € residui |
+| Totali pratica | 800,00 € · Rate 320,00 / 240,00 / 240,00 € · Incassati 250,00 €, residui 550,00 € |
+
+Tutti i valori coincidono con la tabella "Risultati attesi" della prova e sono verificati dai test automatici.
 
 ---
 
@@ -98,8 +111,12 @@ app/
   main.py         API FastAPI e pagine
   templates/      pagine HTML (Jinja2)
 data/             file demo
-tests/            unit, api, e2e
+tests/
+  unit/           test della logica
+  api/            test delle API
+  e2e/            test nel browser (Playwright)
 schema.sql        schema del database
+PROGRESS.md       diario delle scelte tecniche, passo per passo
 ```
 
 La logica di calcolo è separata dal database e dal web: si può testare da sola e resta invariata se cambia il database o l'interfaccia.
@@ -130,18 +147,19 @@ UTENTE (operatore del gestionale, non collegato ai dati nel prototipo)
 
 **Scelte di modellazione:**
 
-- **Importi in centesimi (interi).** SQLite non ha un tipo decimale esatto; nel codice si usa `Decimal`, mai `float`.
+- **Importi in centesimi (interi).** SQLite non ha un tipo decimale esatto; nel codice si usa `Decimal`, mai `float`. Nelle API gli importi sono stringhe (`"450.00"`) per non perdere precisione.
 - **La quota del partecipante, l'incassato e il residuo non sono salvati: si calcolano.** La quota è la somma dei servizi, l'incassato è la somma delle imputazioni, il residuo è la differenza. Una sola fonte di verità, nessun dato che non torna.
 - **L'imputazione** rende tracciabile ogni euro: si sa quale bonifico ha pagato quale rata, anche quando un bonifico copre più rate.
 - **`id_movimento` è chiave primaria:** reimportare lo stesso file non duplica i pagamenti.
 - **I pagamenti non si cancellano a cascata** con la pratica: un bonifico ricevuto non deve sparire.
+- **Vincoli nel database** (`CHECK`, `UNIQUE`, chiavi esterne): importi negativi, rate duplicate o riferimenti inesistenti vengono rifiutati anche se il codice sbagliasse.
 
 ### Semplificazioni della demo
 
 - **Nessun login né permessi:** la tabella `utenti` è nello schema ma non è usata.
-- **Il piano rate (3 rate, percentuali e scadenze) arriva dal file** ed è uguale per tutti i partecipanti della pratica.
+- **Il piano rate (numero di rate, percentuali e scadenze) arriva dal file** ed è uguale per tutti i partecipanti della pratica.
 - **Non è possibile modificare una pratica** dopo la creazione (cambio servizi, ritiro di un partecipante, storni).
-- **Il partecipante si individua dal confronto esatto di nome e cognome nella causale** (senza distinguere maiuscole e minuscole). Un bonifico non attribuibile con certezza viene scartato con il motivo, non registrato.
+- **Il partecipante si individua dal confronto di nome e cognome nella causale** (senza distinguere maiuscole e minuscole). Un bonifico non attribuibile con certezza viene scartato con il motivo, non registrato.
 - **Un bonifico superiore al dovuto** viene registrato e l'eccedenza viene segnalata, ma non è gestita come credito.
 - **SQLite** come database: adatto a un prototipo, non a molti utenti in scrittura contemporanea.
 
@@ -150,6 +168,7 @@ UTENTE (operatore del gestionale, non collegato ai dati nel prototipo)
 - `participant_id` è unico in tutto il database, non per pratica: due pratiche diverse non possono avere un partecipante `P-001`. In produzione andrebbe usato un identificativo interno generato dal sistema.
 - Non c'è una gestione delle omonimie nella stessa pratica: due partecipanti con lo stesso nome renderebbero il bonifico non attribuibile (viene scartato, non attribuito a caso).
 - Date e formati dei file sono validati solo nei campi necessari ai calcoli.
+- Lo schema è un unico file `schema.sql`: in un progetto reale le modifiche al database andrebbero gestite con migrazioni versionate.
 
 ---
 
@@ -167,10 +186,46 @@ UTENTE (operatore del gestionale, non collegato ai dati nel prototipo)
 
 ## Uso dell'AI e tempo impiegato
 
-**Tempo impiegato:** [DA COMPLETARE: es. circa X ore]
+**Tempo impiegato:** circa 8 ore, una giornata di lavoro:
+- circa 1 ora per l'analisi della prova e le scelte tecniche
+- circa 3 ore per lo sviluppo e i test
+- circa 1 ora per la documentazione e la prova di n8n
+- circa 3 ore per la revisione e lo studio del codice, per essere in grado di spiegare e modificare ogni parte
 
-- **Strumenti:** ho usato Claude (Anthropic) come assistente per la scelta dello stack, la progettazione dello schema, la generazione del codice iniziale e dei test, e le spiegazioni passo per passo.
-- **Lavoro diretto:** ho impostato il progetto da terminale (ambiente virtuale, struttura, dipendenze), costruito l'applicazione un file alla volta verificando ogni passaggio, e tenuto un diario delle scelte in `PROGRESS.md`. [DA COMPLETARE: eventuali parti che hai modificato o scritto tu]
-- **Verifiche:** ogni file è stato provato prima di passare al successivo (script di prova, `/docs`, browser), poi coperto da test automatici a tre livelli (unit, API, E2E) che confrontano i risultati con la tabella "Risultati attesi". Ho verificato anche la persistenza riavviando il server.
-- **Problemi trovati e risolti:** i test E2E hanno individuato un identificativo di test mancante nel template della pratica, corretto dopo aver analizzato lo snapshot della pagina restituito da Playwright; un avviso di deprecazione della libreria di test è stato risolto aggiornando le dipendenze.
-- **Limiti e ipotesi:** vedi "Semplificazioni della demo" e "Limiti noti".
+**Strumenti:** ho usato Claude (Anthropic) come assistente per confrontare le possibili tecnologie, progettare lo schema del database, generare il codice dell'applicazione e dei test, e farmi spiegare ogni scelta passo per passo.
+
+**Come ho lavorato:** ho impostato io il progetto da terminale (ambiente virtuale, struttura delle cartelle, dipendenze, git) e ho costruito l'applicazione un file alla volta: per ogni file ho letto e capito il codice proposto, l'ho inserito nel progetto e l'ho verificato prima di passare al successivo. Ho tenuto un diario delle scelte e del perché in `PROGRESS.md`.
+
+**Verifiche:**
+- ogni componente è stato provato appena scritto: schema con un database in memoria, logica di calcolo dal terminale, accesso ai dati con uno script di prova, API da `/docs`, pagine nel browser
+- ho confrontato manualmente le risposte dell'API con la tabella "Risultati attesi"
+- ho verificato la persistenza riavviando il server
+- ho poi coperto tutto con test automatici su tre livelli (unit, API, end-to-end), che confrontano i risultati con i valori attesi della prova e coprono anche errori e casi limite
+
+**Problemi trovati e risolti:**
+- i test end-to-end hanno individuato un identificativo di test mancante nel template della pratica: l'ho trovato analizzando lo snapshot della pagina restituito da Playwright e corretto nel template
+- un avviso di deprecazione della libreria di test è stato risolto aggiornando le dipendenze
+- scrivendo i test è emerso che `participant_id` è unico in tutto il database e non per pratica: l'ho riportato tra i limiti noti
+
+**Limiti e ipotesi:** vedi "Semplificazioni della demo" e "Limiti noti".
+
+---
+
+## Prova extra: n8n
+
+Non conoscendo n8n, che è tra gli strumenti citati nella prova, l'ho installato in locale (`npx n8n`) per capire come funziona, e l'ho provato collegandolo a questo gestionale.
+
+Ho creato un piccolo workflow di prova:
+
+1. **Trigger manuale**
+2. **HTTP Request**: `GET /api/pratiche/CASE-1001`, legge la pratica tramite l'API del gestionale
+3. **IF**: continua solo se il residuo della pratica è maggiore di zero
+4. **Code** (JavaScript): per ogni partecipante trova la prima rata non saldata e prepara un messaggio di promemoria
+
+Risultato con i dati demo:
+- Mario Rossi: rata 1, 30,00 € da pagare entro il 15/12/2026
+- Giulia Bianchi: rata 1, 40,00 € da pagare entro il 15/12/2026
+
+Mi è servito a capire come uno strumento di automazione possa lavorare sopra le API del gestionale senza conoscerne la logica interna. In un caso reale si potrebbe aggiungere l'invio delle email e un avvio programmato (per esempio ogni settimana) per i promemoria delle rate in scadenza.
+
+Nota: dato che le API restituiscono gli importi come stringhe, in n8n è stato necessario convertirli in numero (`Number(...)`) per i confronti.
